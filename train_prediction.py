@@ -12,7 +12,7 @@ def train_prediction():
     GROUND = 80      # how many real V steps to build memory from before rolling out
     ROLLOUT = 40     # how many steps to predict forward (feeding predictions back in)
     BATCH = 64
-    EPOCHS = 20
+    EPOCHS = 40
 
     # --- build training samples: each sample is one anchor's slice of the run ---
     # a sample needs GROUND real steps + ROLLOUT future steps to compare against.
@@ -37,6 +37,8 @@ def train_prediction():
         list(inverse.parameters()) + list(memory.parameters()) + list(predict.parameters()),
         lr=1e-3,
     )
+    # lower the learning rate by 10x every 15 epochs (1e-3 -> 1e-4 -> 1e-5)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=15, gamma=0.1)
 
     num_samples = samples.shape[0]
 
@@ -91,7 +93,9 @@ def train_prediction():
             running += loss.item()
             count += 1
 
-        print(f"epoch {epoch}  loss {running / count:.4f}")
+        scheduler.step()
+        lr_now = scheduler.get_last_lr()[0]
+        print(f"epoch {epoch}  loss {running / count:.4f}  lr {lr_now:.1e}")
 
     torch.save(inverse.state_dict(), "inverse.pth")
     torch.save(memory.state_dict(),  "memory.pth")

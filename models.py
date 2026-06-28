@@ -3,7 +3,7 @@ import torch.nn as nn
 
 LATENT_DIM = 256    # vision vector size (V)
 ACTION_DIM = 3      # inferred action size (matches steering/gas/brake)
-MEMORY_DIM = 512    # memory state size (M)
+MEMORY_DIM = 768    # memory state size (M)
 
 
 class Encoder(nn.Module):
@@ -47,8 +47,9 @@ class InverseActionModel(nn.Module):
         super().__init__()
         # input is V(t) and V(t-1) glued together -> 2 * LATENT_DIM
         self.net = nn.Sequential(
-            nn.Linear(2 * LATENT_DIM, 128), nn.ReLU(),
-            nn.Linear(128, ACTION_DIM),
+            nn.Linear(2 * LATENT_DIM, 256), nn.ReLU(),
+            nn.Linear(256, 256), nn.ReLU(),
+            nn.Linear(256, ACTION_DIM),
         )
 
     def forward(self, v_t, v_prev):
@@ -81,8 +82,9 @@ class PredictionModel(nn.Module):
         super().__init__()
         # input is memory M(t); output is a predicted next vision vector (size LATENT_DIM)
         self.net = nn.Sequential(
-            nn.Linear(MEMORY_DIM, 256), nn.ReLU(),
-            nn.Linear(256, LATENT_DIM),
+            nn.Linear(MEMORY_DIM, 512), nn.ReLU(),
+            nn.Linear(512, 512), nn.ReLU(),
+            nn.Linear(512, LATENT_DIM),
         )
 
     def forward(self, memory):
