@@ -1,7 +1,8 @@
 from train_encoder import train_encoder
 from precompute_vectors import precompute_vectors
 from train_prediction import train_prediction
-from visualize import watch_reconstruction, watch_prediction
+from train_performance import train_performance
+from visualize import watch_reconstruction, watch_prediction, watch_dream
 
 # the menu: each entry maps a typed choice to the function that does that work.
 # to add a future stage, write its function and add one line here.
@@ -10,7 +11,9 @@ OPERATIONS = {
     "2": ("Precompute V vectors from trained encoder", precompute_vectors),
     "3": ("Train prediction module (inverse + memory + prediction)", train_prediction),
     "4": ("Watch abstraction reconstructions", watch_reconstruction),
-    "5": ("Watch predictions vs actual", watch_prediction),
+    "5": ("Watch predictions vs actual (single-step)", watch_prediction),
+    "6": ("Watch dream (ground on real, then predict forward)", watch_dream),
+    "7": ("Train performance evaluation model", train_performance),
 }
 
 

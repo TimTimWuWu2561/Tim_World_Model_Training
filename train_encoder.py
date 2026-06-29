@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 from dataset import FrameDataset
 from models import Encoder, Decoder
 
-EPOCHS = 30
+EPOCHS = 40
 
 def train_encoder():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

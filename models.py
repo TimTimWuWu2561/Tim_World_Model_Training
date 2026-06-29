@@ -90,3 +90,26 @@ class PredictionModel(nn.Module):
     def forward(self, memory):
         pred = self.net(memory)   # (..., LATENT_DIM)
         return pred
+
+
+HISTORY = 50        # how many past V vectors the performance model looks at
+PERF_HIDDEN = 256   # GRU memory size for the performance model
+
+
+class PerformanceEvaluationModel(nn.Module):
+    def __init__(self):
+        super().__init__()
+        # read the HISTORY frames as a sequence; the GRU summarizes them
+        self.gru = nn.GRU(
+            input_size=LATENT_DIM,
+            hidden_size=PERF_HIDDEN,
+            batch_first=True,    # input shape (batch, HISTORY, LATENT_DIM)
+        )
+        self.to_value = nn.Linear(PERF_HIDDEN, 1)
+
+    def forward(self, v_history):
+        # v_history: (batch, HISTORY, LATENT_DIM)
+        out, h = self.gru(v_history)     # h: (1, batch, PERF_HIDDEN) final memory
+        summary = h[0]                   # (batch, PERF_HIDDEN)
+        value = self.to_value(summary)   # (batch, 1)
+        return value

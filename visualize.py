@@ -91,3 +91,78 @@ def watch_prediction():
 
     imageio.mimsave("prediction.mp4", out_frames, fps=30)
     print("saved prediction.mp4  (left = actual next frame, right = predicted next frame)")
+
+
+def watch_dream():
+    """Ground on real frames, then dream forward; show dreamed (right) next to actual (left)."""
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print("using device:", device)
+
+    GROUND = 80       # how many real frames to ground the memory on
+    DREAM = 300       # how many frames to dream forward (~10s at 30fps)
+
+    decoder = _load_decoder(device)
+    inverse = InverseActionModel().to(device)
+    memory  = MemoryModel().to(device)
+    predict = PredictionModel().to(device)
+    inverse.load_state_dict(torch.load("inverse.pth", map_location=device))
+    memory.load_state_dict(torch.load("memory.pth", map_location=device))
+    predict.load_state_dict(torch.load("predict.pth", map_location=device))
+    inverse.eval()
+    memory.eval()
+    predict.eval()
+
+    v = np.load("vectors/vec_1.npy")                 # (1000, 256)
+    v = torch.from_numpy(v).float().to(device)
+
+    dreamed = []   # dreamed vectors, one per shown timestep
+    actual  = []   # the real vector at that same timestep
+
+    with torch.no_grad():
+        # --- phase 1: ground the memory on GROUND real frames ---
+        ground = v[:GROUND].unsqueeze(0)
+        v_prev = ground[:, :-1, :]
+        v_cur  = ground[:, 1:,  :]
+        actions = inverse(v_cur, v_prev)
+        gru_in = torch.cat([v_cur, actions], dim=-1)
+        _, h = memory.gru(gru_in)
+
+        # during grounding, dreamed == actual (we are still on real frames)
+        for t in range(GROUND):
+            dreamed.append(v[t])
+            actual.append(v[t])
+
+        # seed the rollout with the last two real vectors
+        cur_v = v[GROUND - 1]
+        prv_v = v[GROUND - 2]
+
+        # --- phase 2: dream DREAM steps, feeding predictions back ---
+        for step in range(DREAM):
+            a = inverse(cur_v.unsqueeze(0), prv_v.unsqueeze(0))
+            step_in = torch.cat([cur_v.unsqueeze(0), a], dim=-1).unsqueeze(1)
+            out, h = memory.gru(step_in, h)
+            m = out[:, 0, :]
+            p = predict(m).squeeze(0)
+
+            dreamed.append(p)
+            # the actual frame for this dreamed step (if it exists in the run)
+            real_idx = GROUND + step
+            if real_idx < v.shape[0]:
+                actual.append(v[real_idx])
+            else:
+                actual.append(v[-1])   # past the run end: just repeat the last real frame
+
+            prv_v = cur_v
+            cur_v = p
+
+        # --- decode both streams ---
+        dreamed_imgs = decoder(torch.stack(dreamed, dim=0))   # (N, 3, 96, 96)
+        actual_imgs  = decoder(torch.stack(actual,  dim=0))
+
+    out_frames = []
+    for i in range(dreamed_imgs.shape[0]):
+        pair = torch.cat([actual_imgs[i], dreamed_imgs[i]], dim=2)   # (3, 96, 192)
+        out_frames.append(_to_image(pair))
+
+    imageio.mimsave("dream.mp4", out_frames, fps=30)
+    print(f"saved dream.mp4  (left = actual, right = dream; first {GROUND} grounded, then {DREAM} dreamed)")
